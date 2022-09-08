@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1005839934793",
+    "project_id": "orion-edutech-fsm",
+    "storage_bucket": "orion-edutech-fsm.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1005839934793:android:7b0e16a1150948af35a698",
+        "android_client_info": {
+          "package_name": "com.orionedutechfsm"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1005839934793-qommq8hg9h42ij1asdn1q3e75bffsj8i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8O5SW2Hnz_dCr17VRcFE8cyj62Z0o6O8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1005839934793-qommq8hg9h42ij1asdn1q3e75bffsj8i.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
