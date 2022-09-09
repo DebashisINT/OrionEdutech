@@ -12546,8 +12546,11 @@ class DashboardActivity : BaseActivity(), View.OnClickListener, BaseNavigation, 
                             }
                         }
                         else {
-                            val shopActivity = AppDatabase.getDBInstance()!!.shopActivityDao().durationAvailableForShopList(syncedShopList[k].shop_id, true,
-                                false)
+//                            val shopActivity = AppDatabase.getDBInstance()!!.shopActivityDao().durationAvailableForShopList(syncedShopList[k].shop_id, true,
+//                                false)
+
+                            AppDatabase.getDBInstance()!!.shopActivityDao().updateDurationCalculatedStatusByShopID(syncedShopList[k].shop_id.toString(),true,AppUtils.getCurrentDateForShopActi())
+                            val shopActivity = AppDatabase.getDBInstance()!!.shopActivityDao().durationAvailableForShopList(syncedShopList[k].shop_id, true, false)
 
                             shopActivity?.forEach {
                                 val shopDurationData = ShopDurationRequestData()
@@ -12685,16 +12688,21 @@ class DashboardActivity : BaseActivity(), View.OnClickListener, BaseNavigation, 
                                                 for (i in 0 until newShopList.size) {
                                                     AppDatabase.getDBInstance()!!.shopActivityDao().updateisUploaded(true, newShopList[i].shop_id!!, AppUtils.changeAttendanceDateFormatToCurrent(newShopList[i].visited_date!!) /*AppUtils.getCurrentDateForShopActi()*/)
                                                 }
+                                                BaseActivity.isShopActivityUpdating = false
+                                                syncShopVisitImage(newShopList)
                                             } else {
+                                                BaseActivity.isShopActivityUpdating = false
                                                 if (!Pref.isMultipleVisitEnable) {
                                                     for (i in 0 until shopDataList.size) {
                                                         AppDatabase.getDBInstance()!!.shopActivityDao().updateisUploaded(true, shopDataList[i].shop_id!!, AppUtils.changeAttendanceDateFormatToCurrent(shopDataList[i].visited_date!!) /*AppUtils.getCurrentDateForShopActi()*/)
                                                     }
+                                                    syncShopVisitImage(shopDataList)
                                                 }
                                                 else {
                                                     for (i in 0 until shopDataList.size) {
                                                         AppDatabase.getDBInstance()!!.shopActivityDao().updateisUploaded(true, shopDataList[i].shop_id!!, AppUtils.changeAttendanceDateFormatToCurrent(shopDataList[i].visited_date!!), shopDataList[i].start_timestamp!!)
                                                     }
+                                                    syncShopVisitImage(shopDataList)
                                                 }
                                             }
                                             BaseActivity.isShopActivityUpdating = false
@@ -12753,6 +12761,89 @@ class DashboardActivity : BaseActivity(), View.OnClickListener, BaseNavigation, 
                 })
         )
     }
+
+    private var mShopDataList: MutableList<ShopDurationRequestData>? = null
+    private fun syncShopVisitImage(shopDataList: MutableList<ShopDurationRequestData>) {
+        mShopDataList = shopDataList
+        val unSyncedList = ArrayList<ShopVisitImageModelEntity>()
+        for (i in shopDataList.indices) {
+            val unSyncedData = AppDatabase.getDBInstance()!!.shopVisitImageDao().getTodaysUnSyncedListAccordingToShopId(false, shopDataList[i].shop_id!!, shopDataList[i].visited_date!!)
+
+            if (unSyncedData != null && unSyncedData.isNotEmpty()) {
+                unSyncedList.add(unSyncedData[0])
+            }
+        }
+
+        if (unSyncedList.size > 0) {
+            i = 0
+            callShopVisitImageUploadApi(unSyncedList)
+        }
+    }
+
+    private fun callShopVisitImageUploadApi(unSyncedList: List<ShopVisitImageModelEntity>) {
+
+        try {
+            if (BaseActivity.isShopActivityUpdating)
+                return
+            BaseActivity.isShopActivityUpdating = true
+
+            val visitImageShop = ShopVisitImageUploadInputModel()
+            visitImageShop.session_token = Pref.session_token
+            visitImageShop.user_id = Pref.user_id
+            visitImageShop.shop_id = unSyncedList[i].shop_id
+            visitImageShop.visit_datetime = unSyncedList[i].visit_datetime
+
+            XLog.d("====UPLOAD REVISIT ALL IMAGE INPUT PARAMS (Logout Sync)======")
+            XLog.d("USER ID====> " + visitImageShop.user_id)
+            XLog.d("SESSION ID====> " + visitImageShop.session_token)
+            XLog.d("SHOP ID====> " + visitImageShop.shop_id)
+            XLog.d("VISIT DATE TIME=====> " + visitImageShop.visit_datetime)
+            XLog.d("IMAGE=====> " + unSyncedList[i].shop_image)
+            XLog.d("===============================================================")
+
+            val repository = ShopVisitImageUploadRepoProvider.provideAddShopRepository()
+
+            BaseActivity.compositeDisposable.add(
+                    repository.visitShopWithImage(visitImageShop, unSyncedList[i].shop_image!!, mContext)
+                            .observeOn(AndroidSchedulers.mainThread())
+                            .subscribeOn(Schedulers.io())
+                            .subscribe({ result ->
+                                val logoutResponse = result as BaseResponse
+                                XLog.d("UPLOAD REVISIT ALL IMAGE : " + "RESPONSE : " + logoutResponse.status + "\n" + "Time : " + AppUtils.getCurrentDateTime() + ", USER :" + Pref.user_name + ",MESSAGE : " + logoutResponse.message)
+                                if (logoutResponse.status == NetworkConstant.SUCCESS) {
+                                    AppDatabase.getDBInstance()!!.shopVisitImageDao().updateisUploaded(true, unSyncedList.get(i).shop_id!!)
+                                    BaseActivity.isShopActivityUpdating = false
+                                    i++
+                                    if (i < unSyncedList.size)
+                                        callShopVisitImageUploadApi(unSyncedList)
+                                    else {
+                                        i = 0
+                                        //checkToCallAudioApi()
+                                    }
+                                } else {
+                                    progress_wheel.stopSpinning()
+                                    BaseActivity.isShopActivityUpdating = false
+                                    //checkToCallSyncOrder()
+                                    //checkToRetryVisitButton()
+                                }
+
+                            }, { error ->
+                                progress_wheel.stopSpinning()
+                                XLog.d("UPLOAD REVISIT ALL IMAGE : " + "ERROR : " + "\n" + "Time : " + AppUtils.getCurrentDateTime() + ", USER :" + Pref.user_name + ",MESSAGE : " + error.localizedMessage)
+                                error.printStackTrace()
+                                BaseActivity.isShopActivityUpdating = false
+                                //checkToCallSyncOrder()
+                                //checkToRetryVisitButton()
+                            })
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            progress_wheel.stopSpinning()
+            BaseActivity.isShopActivityUpdating = false
+            //checkToCallSyncOrder()
+        }
+    }
+
 
 
 }

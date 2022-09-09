@@ -190,4 +190,8 @@ interface ShopActivityDao {
     @Query("update shop_activity set next_visit_date=:next_visit_date where shopid=:shopid  and shopActivityId=:shopActivityId")
     fun trash2(next_visit_date: String, shopid: String, shopActivityId: String)
 
+    @Query("update shop_activity set isDurationCalculated=:isDurationCalculated where date=:date and shopid=:shopid")
+    fun updateDurationCalculatedStatusByShopID(shopid:String,isDurationCalculated: Boolean, date: String): Int
+
+
 }
